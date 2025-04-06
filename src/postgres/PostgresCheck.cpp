@@ -10,21 +10,23 @@ using namespace clang;
 using namespace clang::tidy;
 using namespace clang::ast_matchers;
 
-class PostgresCheck : public ClangTidyCheck {
+namespace PostgresCheck {
+
+class BitmapsetCheck: public ClangTidyCheck {
 public:
-  PostgresCheck(StringRef Name, ClangTidyContext *Context)
+  BitmapsetCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
-	void verify_argument(const SourceRange callRange, const std::string functionName, const Expr *arg);
+	void verify_bms_argument(const SourceRange callRange, const std::string functionName, const Expr *arg);
 };
 
-void PostgresCheck::registerMatchers(MatchFinder *Finder) {
+void BitmapsetCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(callExpr().bind("check_bms_functions"), this);
 }
 
-void PostgresCheck::check(const MatchFinder::MatchResult &Result) {
+void BitmapsetCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *call = Result.Nodes.getNodeAs<CallExpr>("check_bms_functions");
   const FunctionDecl *funcDecl = call->getDirectCallee();
   if (!funcDecl)
@@ -32,18 +34,18 @@ void PostgresCheck::check(const MatchFinder::MatchResult &Result) {
   std::string functionName = funcDecl->getNameInfo().getAsString();
 
   if (functionName == "bms_make_singleton") {
-		this->verify_argument(call->getSourceRange(), functionName, call->getArg(0));
+		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(0));
   }
   if (functionName == "bms_add_member" || functionName == "bms_del_member") {
-		this->verify_argument(call->getSourceRange(), functionName, call->getArg(1));
+		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(1));
   }
   if (functionName == "bms_add_range") {
-		this->verify_argument(call->getSourceRange(), functionName, call->getArg(1));
-		this->verify_argument(call->getSourceRange(), functionName, call->getArg(2));
+		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(1));
+		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(2));
   }
 }
 
-void PostgresCheck::verify_argument(const SourceRange callRange, const std::string functionName, const Expr *arg)
+void BitmapsetCheck::verify_bms_argument(const SourceRange callRange, const std::string functionName, const Expr *arg)
 {
   QualType argType = arg->getType();
 
@@ -55,19 +57,21 @@ void PostgresCheck::verify_argument(const SourceRange callRange, const std::stri
 
 			if (typeName != "AttrNumber" && typeName != "int16" && typeName != "uint16" && typeName != "Index")
 			{
-				diag(callRange.getBegin(), "function %0 called with %1 ") << functionName << sourceType.getAsString();
+				diag(callRange.getBegin(), "function %0 called with %1 argument ") << functionName << sourceType.getAsString();
 			}
 
 		}
   }
 }
 
+} // namespace PostgresCheck
+
 namespace {
 
 class PostgresCheckModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<PostgresCheck>("postgres-check");
+    CheckFactories.registerCheck<PostgresCheck::BitmapsetCheck>("postgres-bitmapset-arguments");
   }
 };
 
