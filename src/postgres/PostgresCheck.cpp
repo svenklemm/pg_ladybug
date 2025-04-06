@@ -19,7 +19,7 @@ public:
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 private:
-	void verify_bms_argument(const SourceRange callRange, const std::string functionName, const Expr *arg);
+	void verify_bitmapset_member(const SourceRange callRange, const std::string functionName, const Expr *arg);
 };
 
 void BitmapsetCheck::registerMatchers(MatchFinder *Finder) {
@@ -34,18 +34,23 @@ void BitmapsetCheck::check(const MatchFinder::MatchResult &Result) {
   std::string functionName = funcDecl->getNameInfo().getAsString();
 
   if (functionName == "bms_make_singleton") {
-		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(0));
+		this->verify_bitmapset_member(call->getSourceRange(), functionName, call->getArg(0));
   }
   if (functionName == "bms_add_member" || functionName == "bms_del_member") {
-		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(1));
+		this->verify_bitmapset_member(call->getSourceRange(), functionName, call->getArg(1));
   }
   if (functionName == "bms_add_range") {
-		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(1));
-		this->verify_bms_argument(call->getSourceRange(), functionName, call->getArg(2));
+		this->verify_bitmapset_member(call->getSourceRange(), functionName, call->getArg(1));
+		this->verify_bitmapset_member(call->getSourceRange(), functionName, call->getArg(2));
   }
 }
 
-void BitmapsetCheck::verify_bms_argument(const SourceRange callRange, const std::string functionName, const Expr *arg)
+/*
+ * Adding anything but small ints to a bitmapset is usally a mistake and an Index was
+ * meant to be added instead. e.g. RelOptInfo->relid (Index) was meant to be added but the code
+ * is adding RangeTblEntry->relid (Oid).
+ */
+void BitmapsetCheck::verify_bitmapset_member(const SourceRange callRange, const std::string functionName, const Expr *arg)
 {
   QualType argType = arg->getType();
 
@@ -71,7 +76,7 @@ namespace {
 class PostgresCheckModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<PostgresCheck::BitmapsetCheck>("postgres-bitmapset-arguments");
+    CheckFactories.registerCheck<PostgresCheck::BitmapsetCheck>("postgres-bitmapset-member");
   }
 };
 
