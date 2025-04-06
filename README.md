@@ -35,11 +35,16 @@ clang-tidy --load build/lib/libPostgresCheck.so --checks='-*,postgres-*' --list-
 ```
 
 ```
-clang-tidy --load build/lib/libPostgresCheck.so --checks='-*,postgres-*' file.c
-3 warnings generated.
-file.c:224:30: warning: function bms_add_member called with Oid argument  [postgres-bitmapset-arguments]
+% clang-tidy --load ~/projects/pg_ladybug/build/lib/libPostgresCheck.so --checks='postgres-*' file.c
+2 warnings and 2 errors generated.
+Error while processing file.c.
+file.c:224:30: error: potential wrong function argument. bms_add_member called with datatype Oid [postgres-bitmapset-member]
   224 |                 uncompressed_attrs_found = bms_add_member(uncompressed_attrs_found, ladybug_test);
       |                                            ^
-Suppressed 2 warnings (2 with check filters).
+file.c:227:30: error: potential wrong function argument. bms_add_member called with datatype Oid [postgres-bitmapset-member]
+  227 |                 uncompressed_attrs_found = bms_add_member(uncompressed_attrs_found, ladybug_test);
+      |                                            ^
+Suppressed 2 warnings (2 in non-user code).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
 ```
 
