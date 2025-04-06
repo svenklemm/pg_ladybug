@@ -10,6 +10,7 @@ pg_ladybug checks C code using the postgres API for problematic patterns. It is 
 pg_ladybug checks for the following patterns:
 
 - passing large int into Bitmapset
+- missing assignment for return value of Bitmapset functions
 
 ## Installation
 
