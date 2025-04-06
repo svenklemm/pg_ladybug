@@ -19,28 +19,41 @@ public:
       : ClangTidyCheck(Name, Context) {}
 
   void registerMatchers(MatchFinder *Finder) override {
-    Finder->addMatcher(callExpr().bind("bms_functions"), this);
+    Finder->addMatcher(callExpr().bind("bitmapset_functions"), this);
   }
 
   void check(const MatchFinder::MatchResult &Result) override {
-    if (const CallExpr *callExpr = Result.Nodes.getNodeAs<CallExpr>("bms_functions"))
+    if (const CallExpr *callExpr = Result.Nodes.getNodeAs<CallExpr>("bitmapset_functions"))
     {
       SourceLocation loc = callExpr->getBeginLoc();
 
       const FunctionDecl *funcDecl = callExpr->getDirectCallee();
       if (!funcDecl)
         return;
+
       std::string functionName = funcDecl->getNameInfo().getAsString();
 
-      if (functionName == "bms_make_singleton") {
-        this->verify_bitmapset_member(loc, functionName, callExpr->getArg(0));
-      }
       if (functionName == "bms_add_member" || functionName == "bms_del_member") {
         this->verify_bitmapset_member(loc, functionName, callExpr->getArg(1));
+        this->verify_return_value_used(Result, callExpr);
+      }
+      if (functionName == "bms_add_members" || functionName == "bms_del_members") {
+        this->verify_return_value_used(Result, callExpr);
+      }
+      if (functionName == "bms_int_members") {
+        this->verify_return_value_used(Result, callExpr);
+      }
+      if (functionName == "bms_make_singleton") {
+        this->verify_bitmapset_member(loc, functionName, callExpr->getArg(0));
+        this->verify_return_value_used(Result, callExpr);
       }
       if (functionName == "bms_add_range") {
         this->verify_bitmapset_member(loc, functionName, callExpr->getArg(1));
         this->verify_bitmapset_member(loc, functionName, callExpr->getArg(2));
+        this->verify_return_value_used(Result, callExpr);
+      }
+      if (functionName == "bms_join" || functionName == "bms_union" || functionName == "bms_intersect" || functionName == "bms_difference") {
+        this->verify_return_value_used(Result, callExpr);
       }
 
     }
@@ -71,6 +84,24 @@ private:
     }
   }
 
+  void verify_return_value_used(const MatchFinder::MatchResult &Result, const CallExpr *callExpr)
+  {
+    // Check if the parent node is a StmtExpr (e.g., in a compound statement).
+    // If it is, go one level up.
+    const Stmt *ParentStmt = Result.Context->getParents(*callExpr)[0].get<Stmt>();
+		if (!ParentStmt)
+			return;
+    if(llvm::isa<StmtExpr>(ParentStmt)){
+      ParentStmt = Result.Context->getParents(*ParentStmt)[0].get<Stmt>();
+    }
+    if (!ParentStmt || llvm::isa<Expr>(ParentStmt) ||
+        llvm::isa<DeclStmt>(ParentStmt)) {
+      // The return value is used (e.g., assigned, used in an expression).
+      return;
+    }
+		diag(callExpr->getBeginLoc(), "function return value not used", DiagnosticIDs::Error);
+  }
+
 };
 
 } // namespace PostgresCheck
@@ -80,7 +111,7 @@ namespace {
 class PostgresCheckModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<PostgresCheck::BitmapsetCheck>("postgres-bitmapset-member");
+    CheckFactories.registerCheck<PostgresCheck::BitmapsetCheck>("postgres-bitmapset");
   }
 };
 
