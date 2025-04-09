@@ -16,7 +16,7 @@ pg_ladybug checks for the following patterns:
 
 ```
 apt-get install llvm-19 llvm-19-dev clang-19 libclang-19-dev clang-tidy-19
-git clone https://github.com/svenklemm/pg_ladybug
+git clone https://github.com/timescale/pg_ladybug
 cd pg_ladybug
 cmake -S . -B build
 make -C build
