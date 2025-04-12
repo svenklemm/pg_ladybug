@@ -6,3 +6,6 @@ target_include_directories(PostgresCheck
         ${LLVM_INCLUDE_DIRS}
 )
 target_sources(PostgresCheck PRIVATE ${CMAKE_CURRENT_LIST_DIR}/PostgresCheck.cpp)
+
+install(TARGETS PostgresCheck DESTINATION lib)
+
