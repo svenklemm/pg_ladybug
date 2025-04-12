@@ -1,11 +1,11 @@
-#include "clang/Basic/Diagnostic.h"
-#include "clang-tidy/ClangTidy.h"
-#include "clang-tidy/ClangTidyCheck.h"
-#include "clang-tidy/ClangTidyModule.h"
-#include "clang-tidy/ClangTidyModuleRegistry.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Lex/Lexer.h"
+#include "clang-tidy/ClangTidyCheck.h"
+#include "clang-tidy/ClangTidy.h"
+#include "clang-tidy/ClangTidyModule.h"
+#include "clang-tidy/ClangTidyModuleRegistry.h"
 
 using namespace clang;
 using namespace clang::tidy;
@@ -86,20 +86,63 @@ private:
 
   void verify_return_value_used(const MatchFinder::MatchResult &Result, const CallExpr *callExpr)
   {
-    // Check if the parent node is a StmtExpr (e.g., in a compound statement).
-    // If it is, go one level up.
-    const Stmt *ParentStmt = Result.Context->getParents(*callExpr)[0].get<Stmt>();
-		if (!ParentStmt)
-			return;
-    if(llvm::isa<StmtExpr>(ParentStmt)){
-      ParentStmt = Result.Context->getParents(*ParentStmt)[0].get<Stmt>();
+    if (!isReturnValueUsed(*Result.Context, callExpr)) {
+      diag(callExpr->getBeginLoc(), "function return value not used", DiagnosticIDs::Error);
     }
-    if (!ParentStmt || llvm::isa<Expr>(ParentStmt) ||
-        llvm::isa<DeclStmt>(ParentStmt)) {
-      // The return value is used (e.g., assigned, used in an expression).
-      return;
+  }
+
+  bool isReturnValueUsed(ASTContext &Context, const CallExpr *Call) {
+    const auto &Parents = Context.getParents(*Call);
+    if (Parents.empty()) {
+      return false; // No parent, likely top-level expression statement.
     }
-		diag(callExpr->getBeginLoc(), "function return value not used", DiagnosticIDs::Error);
+
+    // Check the first parent.
+    const auto *ParentStmt = Parents[0].get<Stmt>();
+    if (!ParentStmt) {
+      // Parent is not a statement (could be a Decl, etc.).
+      // For simplicity, we'll consider this 'used' to avoid false positives.
+      return true;
+    }
+
+    // If the direct parent is just the expression statement wrapper, it's unused.
+    // e.g., foo(); <-- CallExpr parent is CompoundStmt, grandparent is FunctionDecl
+    // but the *immediate* wrapper in the AST is often an implicit ExprWithCleanups
+    // or similar, whose parent *is* the CompoundStmt. We need to check if the
+    // CallExpr is the *entire* statement.
+    if (isa<ExprWithCleanups>(ParentStmt)) {
+       ParentStmt = Context.getParents(*ParentStmt)[0].get<Stmt>();
+       if (!ParentStmt) return true;
+    }
+
+    // If the parent is a CompoundStmt, it means the call is a standalone statement.
+    if (isa<CompoundStmt>(ParentStmt)) {
+        return false;
+    }
+
+    // If the parent is a CastExpression, check the parent of the cast.
+    // e.g., (void)foo();
+    if (const auto *Cast = dyn_cast<CastExpr>(ParentStmt)) {
+        // Check if the cast itself is used. Recurse upwards.
+        // We need a way to check the cast's usage. Let's reuse the parent logic.
+        // This simple check assumes casting to void means unused.
+        if (Cast->getCastKind() == CK_ToVoid) {
+            return false;
+        }
+        // Otherwise, assume the casted value *is* used somewhere else.
+         return true;
+    }
+
+    // If the parent is a BinaryOperator (like assignment) or used in a variable
+    // declaration, or returned, it's used.
+    if (isa<BinaryOperator>(ParentStmt) || isa<DeclStmt>(ParentStmt) ||
+        isa<ReturnStmt>(ParentStmt) || isa<ConditionalOperator>(ParentStmt)) {
+        return true;
+    }
+
+    // Default assumption: If it's part of a larger expression/statement, it's used.
+    // This avoids false positives in complex cases.
+    return true;
   }
 
 };
