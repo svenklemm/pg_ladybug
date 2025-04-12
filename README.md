@@ -20,6 +20,7 @@ git clone https://github.com/timescale/pg_ladybug
 cd pg_ladybug
 cmake -S . -B build
 make -C build
+sudo make -C build install
 ```
 
 ## Requirements
@@ -32,11 +33,13 @@ make -C build
 
 Verify checks are present:
 ```
-clang-tidy --load build/lib/libPostgresCheck.so --checks='-*,postgres-*' --list-checks
+clang-tidy --load=/usr/local/lib/libPostgresCheck.so --checks='-*,postgres-*' --list-checks
+Enabled checks:
+    postgres-bitmapset
 ```
 
 ```
-% clang-tidy --load ~/projects/pg_ladybug/build/lib/libPostgresCheck.so --checks='postgres-*' file.c
+% clang-tidy --load /usr/local/lib/libPostgresCheck.so --checks='-*,postgres-*' file.c
 2 warnings and 2 errors generated.
 Error while processing file.c.
 file.c:224:30: error: potential wrong function argument. bms_add_member called with datatype Oid [postgres-bitmapset-member]
