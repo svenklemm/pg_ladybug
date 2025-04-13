@@ -1,0 +1,60 @@
+name: postgres
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [ "master", "REL_17_STABLE" ]
+
+    env:
+      CC: clang-19
+      CXX: clang++-19
+      LLVM_CONFIG: llvm-config-19
+
+    steps:
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get purge llvm-16 llvm-18 clang-16 clang-18
+        sudo apt-get install llvm-19 llvm-19-dev clang-19 libclang-19-dev clang-tidy-19 libcurl4-openssl-dev meson ninja-build
+        sudo ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
+
+    - name: Checkout pg_ladybug
+      uses: actions/checkout@v4
+
+    - name: Checkout postgres
+      uses: actions/checkout@v4
+      with:
+        repository: 'postgres/postgres'
+        path: 'postgres'
+        ref: ${{ matrix.ref }}
+
+    - name: build pg_ladybug
+      run:  |
+        cmake -S . -B build
+        make -C build
+        sudo make -C build install
+
+    - name: Verify pg_ladybug
+      run: |
+        clang-tidy --load=/usr/local/lib/libPostgresCheck.so --checks="-*,postgres-*" --list-checks | grep postgres
+
+    - name: Configure postgres
+      run: |
+        cd postgres
+        touch .clang-tidy
+        meson setup build
+
+    - name: run clang-tidy
+      run: |
+        cd postgres/build
+        run-clang-tidy-19 -load=/usr/local/lib/libPostgresCheck.so -checks="-*,postgres-*" | grep '\[postgres-bitmapset\]' -A2 | tee pg_ladybug.log
+        [ ! -s pg_ladybug.log ]
+
