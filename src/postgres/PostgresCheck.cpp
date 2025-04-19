@@ -162,7 +162,14 @@ private:
       {
         std::string typeName = sourceType.getAsString();
 
-        if (typeName != "AttrNumber" && typeName != "int16" && typeName != "uint16" && typeName != "Index")
+        if (
+          typeName != "AttrNumber" &&
+          typeName != "CommandTag" &&
+          typeName != "CompareType" &&
+          typeName != "Index" &&
+          typeName != "int16" &&
+          typeName != "uint16"
+        )
         {
           diag(loc, "potential wrong function argument. %0 called with datatype %1", DiagnosticIDs::Error) << functionName << typeName;
         }
