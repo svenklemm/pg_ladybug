@@ -55,6 +55,6 @@ jobs:
     - name: run clang-tidy
       run: |
         cd postgres/build
-        run-clang-tidy-19 -load=/usr/local/lib/libPostgresCheck.so -checks="-*,postgres-*" | grep '\[postgres-bitmapset\]' -A2 | tee pg_ladybug.log
+        run-clang-tidy-19 -load=/usr/local/lib/libPostgresCheck.so -checks="-*,postgres-*" | grep '\[postgres-' -A2 | tee pg_ladybug.log
         [ ! -s pg_ladybug.log ]
 
