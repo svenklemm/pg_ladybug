@@ -1,0 +1,36 @@
+name: build
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CC: clang-19
+      CXX: clang++-19
+      LLVM_CONFIG: llvm-config-19
+
+    steps:
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get purge llvm-16 llvm-18 clang-16 clang-18
+        sudo apt-get install llvm-19 llvm-19-dev clang-19 libclang-19-dev clang-tidy-19
+        sudo ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
+
+    - name: Checkout pg_ladybug
+      uses: actions/checkout@v4
+
+    - name: build pg_ladybug
+      run:  |
+        cmake -S . -B build
+        make -C build
+        sudo make -C build install
+
+    - name: Verify pg_ladybug
+      run: |
+        clang-tidy --load=/usr/local/lib/libPostgresCheck.so --checks="-*,postgres-*" --list-checks | grep postgres
+
